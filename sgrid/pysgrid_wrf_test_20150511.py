@@ -23,12 +23,6 @@ u_var = ds.variables['U']
 v_var = ds.variables['V']
 sg_u = sg.U
 sg_v = sg.V
-u_data_trimmed = u_var[TIME_INDEX, VERTICAL_INDEX, sg_u.center_slicing[2], sg_u.center_slicing[3]]
-v_data_trimmed = v_var[TIME_INDEX, VERTICAL_INDEX, sg_v.center_slicing[2], sg_v.center_slicing[3]]
-u_data_avg = avg_to_cell_center(u_data_trimmed, sg_u.center_axis)
-v_data_avg = avg_to_cell_center(v_data_trimmed, sg_v.center_axis)
-u_rotated, v_rotated = rotate_vectors(u_data_avg, v_data_avg, sg.angles)
-uv_vector_sum = vector_sum(u_rotated, v_rotated)
 
 cell_centers = sg.centers
 lon_var_name, lat_var_name = sg.face_coordinates
@@ -38,7 +32,14 @@ lon_var_obj = getattr(sg, lon_var_name)
 lat_var_obj = getattr(sg, lat_var_name)
 lon_subset = lon_data[lon_var_obj.center_slicing]
 lat_subset = lat_data[lat_var_obj.center_slicing]
+angles = sg.angles[lon_var_obj.center_slicing]
 
+u_data_trimmed = u_var[TIME_INDEX, VERTICAL_INDEX, sg_u.center_slicing[2], sg_u.center_slicing[3]]
+v_data_trimmed = v_var[TIME_INDEX, VERTICAL_INDEX, sg_v.center_slicing[2], sg_v.center_slicing[3]]
+u_data_avg = avg_to_cell_center(u_data_trimmed, sg_u.center_axis)
+v_data_avg = avg_to_cell_center(v_data_trimmed, sg_v.center_axis)
+u_rotated, v_rotated = rotate_vectors(u_data_avg, v_data_avg, angles)
+uv_vector_sum = vector_sum(u_rotated, v_rotated)
 
 fig = plt.figure(figsize=(12, 12))
 plt.subplot(111, aspect=(1.0/np.cos(np.mean(lat_subset)*np.pi/180.0)))
