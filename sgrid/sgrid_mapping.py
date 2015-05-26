@@ -20,7 +20,12 @@ def nearest_time(nc_dataset, time):
     num_date = round(nc4.date2num(time, units=time_units, calendar=calendar))
     times = time_var[:]
     time_index = bisect.bisect_right(times, num_date)
-    return time_index
+    try:
+        time_val = times[time_index]
+    except IndexError:
+        time_index -= 1
+        time_val = times[time_index]
+    return time_index, time_val
     
     
 def lon_lat_subset_idx(lon, lat, lon_min, lat_min, lon_max, lat_max, padding=0.18):
@@ -38,11 +43,47 @@ def subset_data(data, subset_indices):
     return data_subset
     
     
+def parse_variable_coordinates(variable_obj):
+    var_dims = len(variable_obj.dimensions)
+    var_coordinates = variable_obj.coordinates.strip().split(' ')
+    if var_dims < len(var_coordinates):
+        c_idx = len(var_coordinates) - var_dims
+        filtered_var_coord = var_coordinates[c_idx:]
+    else:
+        filtered_var_coord = var_coordinates
+    return filtered_var_coord
+    
+    
+def find_depth_variable(variable_obj, nc_dataset):
+    var_coordinates = parse_variable_coordinates(variable_obj)
+    for var_coordinate in var_coordinates:
+        var_obj = nc_dataset.variables[var_coordinate.strip()]
+        if ((hasattr(var_obj, 'axis') and var_obj.axis.lower().strip() == 'z') or
+            (hasattr(var_obj, 'positive') and var_obj.positive.lower().strip() in ['up', 'down'])
+            ):
+            depth_variable = var_coordinate
+            break  # exit loop once the depth variable is found
+        else:
+            depth_variable = None
+    return depth_variable
+    
+
+def nearest_z(variable_obj, nc_dataset, z):
+    depth_variable = find_depth_variable(variable_obj, nc_dataset)
+    depth_data = nc_dataset.variables[depth_variable][:]
+    depth_idx = bisect.bisect_right(depth_data, z)
+    try:
+        depth = depth_data[depth_idx]
+    except IndexError:
+        depth_idx -= 1
+        depth = depth_data[depth_dix]
+    return depth_idx, depth
+    
+    
 if __name__ == '__main__':
     
     CACHED_URL = 'C:/Users/ayan/Desktop/tmp/sgrid1.nc'
     DATASET_URL = 'http://geoport.whoi.edu/thredds/dodsC/coawst_4/use/fmrc/coawst_4_use_best.ncd'
-    VERTICAL_INDEX = -1
     SUB = 1
     SCALE = 0.06
     LON_MAX = -60.88
@@ -56,11 +97,13 @@ if __name__ == '__main__':
     os.environ['TK_LIBRARY'] = 'C:/Python279/tcl/tk8.5'
     
     t = datetime.datetime(2012, 6, 25, 2, 0)
+    z = -0.85
     
     cached_dataset = nc4.Dataset(CACHED_URL)
     canon_dataset = nc4.Dataset(DATASET_URL)
     
-    time_idx = nearest_time(cached_dataset, t)
+    time_idx, time_val = nearest_time(cached_dataset, t)
+    print('Time value: {0}'.format(time_val))
     cached_sg = from_nc_dataset(cached_dataset)
     
     lon_name, lat_name = cached_sg.face_coordinates
@@ -83,8 +126,10 @@ if __name__ == '__main__':
     cached_var2 = getattr(cached_sg, var2_name)
     raw_var1 = canon_dataset.variables[var1_name]
     raw_var2 = canon_dataset.variables[var2_name]
-    var1_trimmed = raw_var1[time_idx, VERTICAL_INDEX, cached_var1.center_slicing[2], cached_var1.center_slicing[3]]
-    var2_trimmed = raw_var2[time_idx, VERTICAL_INDEX, cached_var2.center_slicing[2], cached_var2.center_slicing[3]]
+    vertical_index, vertical = nearest_z(raw_var1, canon_dataset, z)
+    print('Vertical: {0}'.format(vertical))
+    var1_trimmed = raw_var1[time_idx, vertical_index, cached_var1.center_slicing[2], cached_var1.center_slicing[3]]
+    var2_trimmed = raw_var2[time_idx, vertical_index, cached_var2.center_slicing[2], cached_var2.center_slicing[3]]
     var1_avg = avg_to_cell_center(var1_trimmed, cached_var1.center_axis)
     var2_avg = avg_to_cell_center(var2_trimmed, cached_var2.center_axis)
     if cached_var1.center_axis == 1 and cached_var2.center_axis == 0:
