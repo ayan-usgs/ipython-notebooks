@@ -3,7 +3,6 @@ import datetime
 import os
 
 import matplotlib.pyplot as plt
-from matplotlib.tri import Triangulation
 import netCDF4 as nc4
 import numpy as np
 import numpy.ma as ma
